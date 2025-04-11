@@ -25,3 +25,40 @@ This project is a voice-activated assistant built with Python. It uses speech re
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
+```
+
+## Installation
+
+1. Clone the repository or copy the code.
+2. Create and activate a Python virtual environment (optional but recommended).
+3. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Or manually install the following libraries:
+
+```bash
+pip install langchain langchain_openai langchain_community openai pygame SpeechRecognition pyttsx3 python-dotenv
+```
+
+4. Place some `.mp3` music files in `D:\Music` (or update the path in the script).
+
+5. Run the script:
+
+```bash
+python voice_assistant.py
+```
+
+## Voice Commands
+
+Try saying things like:
+
+- "Play music"
+- "Stop music"
+- "Next music"
+- "Tell me a joke"
+- "Open Google"
+- "Open YouTube Music"
+- "Goodbye"

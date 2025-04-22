@@ -1,37 +1,35 @@
 import os
-import time
 import random
 import webbrowser
+import requests
 import pygame
 import speech_recognition as sr
-import pyttsx3  # For speaking
+import pyttsx3
 
 from langchain.agents import Tool, initialize_agent, AgentType
-from langchain.chat_models import ChatOpenAI
-from langchain_community.chat_models import ChatOpenAI
 from langchain_openai import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from dotenv import load_dotenv
 
-# Load .env for API keys
+# Load environment variables
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Text-to-speech engine setup
+# Text-to-speech
 engine = pyttsx3.init()
-engine.setProperty('rate', 160)  # Speaking speed
+engine.setProperty('rate', 160)
 
 def speak(text):
     print("Assistant:", text)
     engine.say(text)
     engine.runAndWait()
 
-# Setup recognizer
+# Recognizer and mic
 recognizer = sr.Recognizer()
 mic = sr.Microphone()
 
 # Music setup
-music_dir = "D:\Music"
+music_dir = "D:\\Music"
 if not os.path.exists(music_dir):
     os.makedirs(music_dir)
 
@@ -40,15 +38,29 @@ song_index = 0
 history_stack = []
 pygame.mixer.init()
 
-# Jokes list
-jokes = [
-    "Why don't scientists trust atoms? Because they make up everything!",
-    "Why did the math book look sad? Because it had too many problems.",
-    "Why do cows wear bells? Because their horns don't work!",
-    "What did the computer do at lunchtime? Had a byte!"
-]
+# Joke memory
+last_joke = None
 
-# Music control functions
+def tell_online_joke(_):
+    global last_joke
+    try:
+        while True:
+            res = requests.get("https://official-joke-api.appspot.com/jokes/random")
+            if res.status_code == 200:
+                joke = res.json()
+                full_joke = f"{joke['setup']} ... {joke['punchline']}"
+                if full_joke != last_joke:
+                    last_joke = full_joke
+                    return full_joke
+            else:
+                return "Couldn't fetch a joke right now."
+    except Exception as e:
+        return f"Error fetching joke: {str(e)}"
+
+def next_joke(_):
+    return tell_online_joke(None)
+
+# Music control
 def play_music():
     global song_index
     if not songs:
@@ -78,14 +90,40 @@ def stop_music():
     pygame.mixer.music.stop()
     return "Music stopped."
 
-# Browser-based actions
+# Open web tools
 def open_google(_): webbrowser.open("https://www.google.com"); return "Opening Google."
 def open_youtube(_): webbrowser.open("https://www.youtube.com"); return "Opening YouTube."
 def open_youtube_music(_): webbrowser.open("https://music.youtube.com"); return "Opening YouTube Music."
 def open_jiosaavn(_): webbrowser.open("https://www.jiosaavn.com"); return "Opening JioSaavn."
-def tell_joke(_): return random.choice(jokes)
 
-# LangChain tools
+# File download (PDF/PPT)
+def download_file(command):
+    words = command.split()
+    for word in words:
+        if word.startswith("http"):
+            url = word
+            break
+    else:
+        return "Please provide a valid URL to download from."
+
+    filename = url.split("/")[-1]
+    if not filename.endswith((".ppt", ".pptx", ".pdf")):
+        return "Only PPT and PDF files are supported."
+
+    try:
+        download_folder = "C:\\Users\\Sutiksh\\Downloads"
+        if not os.path.exists(download_folder):
+            os.makedirs(download_folder)
+        download_path = os.path.join(download_folder, filename)
+
+        response = requests.get(url)
+        with open(download_path, "wb") as f:
+            f.write(response.content)
+        return f"Downloaded {filename} to Downloads folder."
+    except Exception as e:
+        return f"Failed to download: {str(e)}"
+
+# Tools for LangChain Agent
 tools = [
     Tool(name="Play System Music", func=lambda x: play_music(), description="Plays a music file."),
     Tool(name="Next Music", func=lambda x: next_music(), description="Plays the next music file."),
@@ -95,17 +133,21 @@ tools = [
     Tool(name="Open YouTube", func=open_youtube, description="Opens YouTube in a web browser."),
     Tool(name="Open YouTube Music", func=open_youtube_music, description="Opens YouTube Music in a web browser."),
     Tool(name="Open JioSaavn", func=open_jiosaavn, description="Opens JioSaavn for music streaming."),
-    Tool(name="Tell Joke", func=tell_joke, description="Tells a random joke to the user.")
+    Tool(name="Tell Joke", func=tell_online_joke, description="Tells a random joke from the internet."),
+    Tool(name="Next Joke", func=next_joke, description="Tells another joke from the internet."),
+    Tool(name="Download File", func=download_file, description="Downloads a PPT or PDF file from a URL.")
 ]
 
-# Agent setup
+# LangChain Agent setup
 llm = ChatOpenAI(temperature=0, openai_api_key=openai_api_key, model="gpt-4o-mini")
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
 agent = initialize_agent(
     tools, llm, agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
     verbose=True, memory=memory, handle_parsing_errors=True
 )
 
+# Speech listening
 def listen_command():
     with mic as source:
         print("Adjusting for background noise... Please wait.")
@@ -120,7 +162,7 @@ def listen_command():
     except sr.RequestError:
         return "Speech Recognition error."
 
-# Assistant starts
+# Start assistant
 speak("Hello, I am your voice assistant. How can I help you today?")
 
 while True:
